@@ -12,7 +12,7 @@ set -e  # Exit immediately if a command fails
 
 # 🛠️ Configurations
 REPO_OWNER="orbitturner"
-REPO_NAME="sysadmin-scripts"
+REPO_NAME="modsec-helper"
 PROJECT_DIR="./"
 BIN_NAME="install_modsec"
 BUILD_DIR="./bin"

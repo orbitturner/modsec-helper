@@ -31,7 +31,7 @@ jobs:
       - name: 🚀 Compilation du binaire avec PyInstaller
         run: |
           source venv/bin/activate
-          pyinstaller --onefile --distpath ./bin Linux/modsec-installer/install_modsec.py
+          pyinstaller --onefile --distpath ./bin ./install_modsec.py
           chmod +x ./bin/install_modsec
 
       - name: 🔄 Récupération de la dernière version GitHub
