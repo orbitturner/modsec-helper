@@ -28,11 +28,11 @@ An automated tool to **install, configure, and manage** [ModSecurity](https://mo
 On a **Linux machine**, install and run the script instantly with:
 
 ```bash
-curl -sL https://github.com/orbitturner/sysadmin-scripts/releases/latest/download/install_modsec -o install_modsec && chmod +x install_modsec && ./install_modsec
+curl -sL https://github.com/orbitturner/modsec-helper/releases/latest/download/install_modsec -o install_modsec && chmod +x install_modsec && ./install_modsec
 ```
 or with `wget`:
 ```bash
-wget -qO install_modsec https://github.com/orbitturner/sysadmin-scripts/releases/latest/download/install_modsec && chmod +x install_modsec && ./install_modsec
+wget -qO install_modsec https://github.com/orbitturner/modsec-helper/releases/latest/download/install_modsec && chmod +x install_modsec && ./install_modsec
 ```
 
 ---
@@ -74,11 +74,11 @@ The script will:
 To **update to the latest version**, run:
 
 ```bash
-curl -sL https://github.com/orbitturner/sysadmin-scripts/releases/latest/download/install_modsec -o install_modsec && chmod +x install_modsec
+curl -sL https://github.com/orbitturner/modsec-helper/releases/latest/download/install_modsec -o install_modsec && chmod +x install_modsec
 ```
 or
 ```bash
-wget -qO install_modsec https://github.com/orbitturner/sysadmin-scripts/releases/latest/download/install_modsec && chmod +x install_modsec
+wget -qO install_modsec https://github.com/orbitturner/modsec-helper/releases/latest/download/install_modsec && chmod +x install_modsec
 ```
 
 ---
@@ -88,8 +88,8 @@ wget -qO install_modsec https://github.com/orbitturner/sysadmin-scripts/releases
 ## 🛠️ **Project Setup**
 Clone the repository:
 ```bash
-git clone https://github.com/orbitturner/sysadmin-scripts.git
-cd sysadmin-scripts/Linux/modsec-installer
+git clone https://github.com/orbitturner/modsec-helper.git
+cd modsec-helper/Linux/modsec-installer
 ```
 
 Create and activate a **Python virtual environment**:
@@ -155,10 +155,6 @@ PROFILES = {
 ---
 
 # 🔧 **Troubleshooting**
-📌 **Nginx or ModSecurity not installed?** → Run:
-```bash
-sudo apt-get install nginx libnginx-mod-security2 -y
-```
 
 📌 **`Permission denied` error on the binary?** → Grant execution permissions:
 ```bash
@@ -190,4 +186,4 @@ gh auth login
 - 🏗 **Easily customizable**
 - 🔥 **Automated releases with GitHub Actions**
 
-💡 **Have questions or suggestions?** [Open an issue](https://github.com/orbitturner/sysadmin-scripts/issues) or submit a PR! 😃🚀
+💡 **Have questions or suggestions?** [Open an issue](https://github.com/orbitturner/modsec-helper/issues) or submit a PR! 😃🚀
