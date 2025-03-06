@@ -1,0 +1,77 @@
+name: Build & Release ModSec Installer
+
+on:
+  push:
+    branches:
+      - main # Déclenche l'action à chaque push sur main
+  workflow_dispatch: # Permet de déclencher manuellement depuis GitHub Actions
+
+permissions:
+  contents: write # Autorise la création de tags et releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # Utilise une VM Ubuntu pour builder le binaire
+    steps:
+      - name: 🛠️ Checkout du code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Installation de Python & Dépendances
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: 📦 Installation des dépendances
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: 🚀 Compilation du binaire avec PyInstaller
+        run: |
+          source venv/bin/activate
+          pyinstaller --onefile --distpath ./bin Linux/modsec-installer/install_modsec.py
+          chmod +x ./bin/install_modsec
+
+      - name: 🔄 Récupération de la dernière version GitHub
+        id: get_version
+        run: |
+          latest_version=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r .tag_name)
+          if [[ "$latest_version" == "null" || -z "$latest_version" ]]; then
+            new_version="v1.0.0"
+          else
+            IFS='.' read -r -a version_parts <<< "${latest_version//v/}"
+            patch=$((version_parts[2] + 1))
+            new_version="v${version_parts[0]}.${version_parts[1]}.$patch"
+          fi
+          echo "NEW_VERSION=$new_version" >> $GITHUB_ENV
+          echo "🔖 Nouvelle version : $new_version"
+
+      - name: 🏷️ Création du tag Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git tag -a $NEW_VERSION -m "Release $NEW_VERSION - ModSecurity Installer"
+          git push origin $NEW_VERSION
+
+      - name: 📦 Création d'une Release GitHub avec le binaire
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.NEW_VERSION }}
+          name: Release ${{ env.NEW_VERSION }}
+          body: |
+            🚀 Nouvelle version du ModSecurity Installer disponible !
+            Téléchargez et exécutez directement :
+            ```bash
+            curl -sL https://github.com/${{ github.repository }}/releases/latest/download/install_modsec -o install_modsec && chmod +x install_modsec && ./install_modsec
+            ```
+            ```bash
+            wget -qO install_modsec https://github.com/${{ github.repository }}/releases/latest/download/install_modsec && chmod +x install_modsec && ./install_modsec
+            ```
+          files: ./bin/install_modsec
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Fin du processus
+        run: echo "🎉 Build & Release terminée avec succès !"
