@@ -6,6 +6,7 @@
 # ==========================
 # 🚀 Installs and configures Nginx + ModSecurity v3 (compiled from source)
 # 🏷️ Idempotent approach with multiple security profiles
+# 💾 Backs up existing Nginx binaries before recompilation
 # 📢 Author: orbitturner
 # ==========================
 
@@ -15,6 +16,7 @@ import subprocess
 import signal
 import argparse
 import time
+from datetime import datetime
 
 from loguru import logger
 from dotenv import load_dotenv
@@ -25,7 +27,8 @@ from rich import print as rprint
 # ------------------------------------------------------------------------------
 # Loguru Configuration
 # ------------------------------------------------------------------------------
-logger.add("install_modsec.log", rotation="5 MB", compression="zip", backtrace=True, diagnose=True)
+logger.add("install_modsec.log", rotation="5 MB",
+           compression="zip", backtrace=True, diagnose=True)
 
 # ------------------------------------------------------------------------------
 # Load environment variables
@@ -74,69 +77,90 @@ PROFILES = {
 # Utility Functions
 # ------------------------------------------------------------------------------
 
+
 def run_command(cmd: str) -> bool:
     logger.debug(f"Executing command: {cmd}")
     try:
-        result = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, shell=True, check=False, capture_output=True, text=True)
         if result.returncode == 0:
             logger.debug(f"Success: {result.stdout.strip()}")
             return True
         else:
-            logger.error(f"Error ({result.returncode}): {result.stderr.strip()}")
+            logger.error(
+                f"Error ({result.returncode}): {result.stderr.strip()}")
             return False
     except Exception as e:
         logger.exception(f"Exception while running command: {cmd}")
         return False
 
+
 def is_nginx_installed() -> bool:
     check = subprocess.run("which nginx", shell=True, capture_output=True)
     return check.returncode == 0
 
-def is_modsecurity_installed() -> bool:
-    check = subprocess.run("ls /usr/local/modsecurity/bin/modsecurity", shell=True, capture_output=True)
+
+def is_nginx_with_modsec() -> bool:
+    check = subprocess.run("nginx -V 2>&1 | grep 'modsecurity'",
+                           shell=True, capture_output=True, text=True)
     return check.returncode == 0
 
-def install_nginx() -> bool:
+
+def backup_nginx():
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_dir = f"/usr/local/nginx_backup_{timestamp}"
+    rprint(
+        f"📦 [yellow]Backing up existing Nginx binaries to {backup_dir}[/yellow]")
+    run_command(f"sudo mkdir -p {backup_dir}")
+    run_command(f"sudo cp -r /usr/sbin/nginx {backup_dir}/nginx_backup")
+    run_command(f"sudo cp -r /etc/nginx {backup_dir}/nginx_conf_backup")
+    rprint("[green]✅ Backup completed successfully![/green]")
+
+
+def install_nginx():
     if is_nginx_installed():
-        rprint("[green]✅ Nginx is already installed.[/green]")
-        return True
+        rprint("[yellow]⚠️  Nginx is already installed.[/yellow]")
 
-    rprint("[yellow]⚠️  Nginx is not installed on this system.[/yellow]")
-    if Prompt.ask("Do you want to install it? (y/n)", default="y").lower() == "y":
-        return run_command("sudo apt update && sudo apt install -y nginx")
-    else:
-        rprint("[red]❌ Nginx installation skipped.[/red]")
-        sys.exit(1)
+        if is_nginx_with_modsec():
+            rprint("[green]✅ Nginx already supports ModSecurity.[/green]")
+            return True
 
-def install_modsecurity() -> bool:
-    if is_modsecurity_installed():
-        rprint("[green]✅ ModSecurity v3 is already installed.[/green]")
-        return True
+        rprint("[red]❌ Existing Nginx does NOT support ModSecurity.[/red]")
 
-    rprint("🚀 [blue]Installing ModSecurity v3...[/blue]")
+        if Prompt.ask("Do you want to backup and recompile Nginx with ModSecurity? (y/n)", default="y").lower() != "y":
+            rprint(
+                "[red]❌ Skipping Nginx recompilation. ModSecurity will NOT work![/red]")
+            sys.exit(1)
+
+        backup_nginx()
+
+    rprint("🚀 [blue]Compiling Nginx with ModSecurity support...[/blue]")
     commands = [
         "sudo apt update && sudo apt install -y git gcc g++ make autoconf automake libtool pkg-config libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev",
-        "cd /usr/local/src && sudo git clone --depth 1 -b v3/master --single-branch https://github.com/SpiderLabs/ModSecurity",
-        "cd /usr/local/src/ModSecurity && sudo git submodule init && sudo git submodule update",
-        "cd /usr/local/src/ModSecurity && sudo ./build.sh && sudo ./configure && sudo make && sudo make install",
+        "cd /usr/local/src && sudo git clone https://github.com/nginx/nginx.git",
+        "cd /usr/local/src/nginx && sudo git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git",
+        "cd /usr/local/src/nginx && sudo ./auto/configure --with-compat --add-module=/usr/local/src/nginx/ModSecurity-nginx",
+        "cd /usr/local/src/nginx && sudo make && sudo make install",
     ]
-    
+
     for cmd in commands:
         if not run_command(cmd):
-            rprint("[red]❌ ModSecurity installation failed.[/red]")
+            rprint("[red]❌ Failed to compile Nginx with ModSecurity.[/red]")
             return False
 
+    rprint("[green]✅ Nginx compiled with ModSecurity successfully![/green]")
     return True
+
 
 def install_owasp_crs():
     crs_repo = "/etc/nginx/modsec/coreruleset"
-    
+
     if os.path.exists(crs_repo):
         rprint("[green]✅ OWASP Core Rule Set is already installed.[/green]")
         return True
-    
+
     rprint("🌍 [blue]Downloading OWASP Core Rule Set (CRS)...[/blue]")
-    
+
     commands = [
         "sudo mkdir -p /etc/nginx/modsec",
         "sudo git clone --depth 1 https://github.com/coreruleset/coreruleset.git /etc/nginx/modsec/coreruleset",
@@ -151,6 +175,7 @@ def install_owasp_crs():
     rprint("[green]✅ OWASP CRS installed successfully![/green]")
     return True
 
+
 def configure_modsecurity(profile_name: str):
     modsec_conf = "/etc/nginx/modsecurity.conf"
 
@@ -161,15 +186,8 @@ def configure_modsecurity(profile_name: str):
     with open(modsec_conf, "w") as f:
         f.write("\n".join(PROFILES[profile_name]["rules"]) + "\n")
 
-    rprint(f"[green]✅ ModSecurity configured with profile [bold]{profile_name}[/bold].[/green]")
-
-    nginx_conf = "/etc/nginx/nginx.conf"
-    with open(nginx_conf, "r") as f:
-        content = f.read()
-
-    if "modsecurity.conf" not in content:
-        with open(nginx_conf, "a") as f:
-            f.write("\nmodsecurity on;\nmodsecurity_rules_file /etc/nginx/modsecurity.conf;\n")
+    rprint(
+        f"[green]✅ ModSecurity configured with profile [bold]{profile_name}[/bold].[/green]")
 
     run_command("sudo systemctl restart nginx")
 
@@ -177,22 +195,25 @@ def configure_modsecurity(profile_name: str):
 # Main Execution
 # ------------------------------------------------------------------------------
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Install and configure Nginx + ModSecurity v3.")
-    parser.add_argument("--profile", type=str, default="basic", help="ModSecurity profile (basic, strict, paranoid).")
+    parser = argparse.ArgumentParser(
+        description="Install and configure Nginx + ModSecurity v3.")
+    parser.add_argument("--profile", type=str, default="basic",
+                        help="ModSecurity profile (basic, strict, paranoid).")
     args = parser.parse_args()
 
-    rprint("[bold magenta]Welcome to the ModSecurity installation script![/bold magenta] 🎉")
+    rprint(
+        "[bold magenta]Welcome to the ModSecurity installation script![/bold magenta] 🎉")
 
     if not install_nginx():
         sys.exit(1)
-    if not install_modsecurity():
-        sys.exit(1)
     if not install_owasp_crs():
         sys.exit(1)
-    
+
     configure_modsecurity(args.profile)
     rprint("[bold green]✨ All done![/bold green]")
+
 
 if __name__ == "__main__":
     try:
